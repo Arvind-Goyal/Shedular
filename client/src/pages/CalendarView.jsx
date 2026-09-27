@@ -272,7 +272,7 @@ export default function CalendarView() {
 
     const firstLecture = day.tasks?.find(t => t.type === 'lecture');
     if (firstLecture) {
-      const lecNumbers = day.tasks.filter(t => t.type === 'lecture').map(t => t.lectureNumber);
+      const lecNumbers = [...new Set(day.tasks.filter(t => t.type === 'lecture').map(t => t.lectureNumber).filter(Boolean))];
       return {
         badge: firstLecture.topicName,
         color: 'violet',
@@ -636,7 +636,7 @@ export default function CalendarView() {
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-violet-100 text-violet-800 dark:bg-violet-900/60 dark:text-violet-200 border border-violet-200 dark:border-violet-800">
                       📚 {
                         selectedDayMeta.tasks.filter(t => t.type === 'lecture').length > 0
-                          ? `Lecture ${selectedDayMeta.tasks.filter(t => t.type === 'lecture').map(t => t.lectureNumber).filter(Boolean).join(' & ')}`
+                          ? `Lecture ${[...new Set(selectedDayMeta.tasks.filter(t => t.type === 'lecture').map(t => t.lectureNumber).filter(Boolean))].join(' & ')}`
                           : `${selectedDayMeta.tasks.length} Study Tasks`
                       }
                     </span>
@@ -754,18 +754,30 @@ export default function CalendarView() {
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex justify-between items-center">
-                  <span>Scheduled Tasks ({selectedDayMeta.tasks.length}):</span>
-                  <span>Click checkbox to mark done</span>
-                </div>
-                {selectedDayMeta.tasks.map(task => (
-                  <TaskItem 
-                    key={task._id} 
-                    task={task} 
-                    onToggle={handleCalendarToggleTask}
-                    hideTiming={true}
-                  />
-                ))}
+                {(() => {
+                  const distinctTasks = (selectedDayMeta.tasks || []).filter((task, index, self) =>
+                    index === self.findIndex(t =>
+                      (t._id && task._id && t._id === task._id) ||
+                      (t.type === 'lecture' && t.lectureNumber === task.lectureNumber && t.topicName === task.topicName)
+                    )
+                  );
+                  return (
+                    <>
+                      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex justify-between items-center">
+                        <span>Scheduled Tasks ({distinctTasks.length}):</span>
+                        <span>Click checkbox to mark done</span>
+                      </div>
+                      {distinctTasks.map(task => (
+                        <TaskItem 
+                          key={task._id || `${task.date}_${task.type}_${task.lectureNumber}`} 
+                          task={task} 
+                          onToggle={handleCalendarToggleTask}
+                          hideTiming={true}
+                        />
+                      ))}
+                    </>
+                  );
+                })()}
               </div>
             )}
 

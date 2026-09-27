@@ -34,11 +34,17 @@ exports.getSchedule = async (req, res) => {
       userSettings: user
     });
 
-    // Group tasks by date
+    // Group tasks by date with deduplication
     const tasksByDate = {};
     for (const t of allTasks) {
       if (!tasksByDate[t.date]) tasksByDate[t.date] = [];
-      tasksByDate[t.date].push(t);
+      const isDuplicate = tasksByDate[t.date].some(existing =>
+        (existing._id && t._id && existing._id.toString() === t._id.toString()) ||
+        (existing.type === 'lecture' && t.type === 'lecture' && existing.lectureNumber === t.lectureNumber && existing.topicName === t.topicName)
+      );
+      if (!isDuplicate) {
+        tasksByDate[t.date].push(t);
+      }
     }
 
     // Comprehensive progress
@@ -107,8 +113,19 @@ exports.getTodayPlan = async (req, res) => {
       blackoutReason: null
     };
 
-    const plannedMinutes = tasks.reduce((sum, t) => sum + (t.durationMinutes || 0), 0);
-    const completedMinutes = tasks.filter(t => t.completed).reduce((sum, t) => sum + (t.durationMinutes || 0), 0);
+    // Deduplicate tasks
+    const uniqueTasks = [];
+    const seen = new Set();
+    for (const t of tasks) {
+      const key = `${t.type}_${t.lectureNumber || t.title}_${t.topicName}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueTasks.push(t);
+      }
+    }
+
+    const plannedMinutes = uniqueTasks.reduce((sum, t) => sum + (t.durationMinutes || 0), 0);
+    const completedMinutes = uniqueTasks.filter(t => t.completed).reduce((sum, t) => sum + (t.durationMinutes || 0), 0);
 
     res.json({
       date: targetDate,
@@ -120,7 +137,7 @@ exports.getTodayPlan = async (req, res) => {
       isRevision: dayMeta.isRevision,
       isBlackout: dayMeta.isBlackout,
       blackoutReason: dayMeta.blackoutReason,
-      tasks,
+      tasks: uniqueTasks,
       backlogTasks,
       topics: topics.map(t => ({ _id: t._id, name: t.name, difficulty: t.difficulty, completedLectures: t.completedLectures, totalLectures: t.totalLectures }))
     });
@@ -169,11 +186,17 @@ exports.getCalendar = async (req, res) => {
     const todayStr = req.query.today || formatDate(now);
     const calendarDays = [];
 
-    // Group tasks by date
+    // Group tasks by date with deduplication
     const tasksByDate = {};
     for (const t of tasks) {
       if (!tasksByDate[t.date]) tasksByDate[t.date] = [];
-      tasksByDate[t.date].push(t);
+      const isDuplicate = tasksByDate[t.date].some(existing =>
+        (existing._id && t._id && existing._id.toString() === t._id.toString()) ||
+        (existing.type === 'lecture' && t.type === 'lecture' && existing.lectureNumber === t.lectureNumber && existing.topicName === t.topicName)
+      );
+      if (!isDuplicate) {
+        tasksByDate[t.date].push(t);
+      }
     }
 
     for (let day = 1; day <= lastDayOfMonth; day++) {

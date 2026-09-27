@@ -79,6 +79,27 @@ async function seedInitialData() {
       topics = await Topic.insertMany(topicDocs);
     }
 
+    // Deduplicate any existing tasks (e.g. if concurrent seed requests previously inserted duplicates)
+    const allUserTasks = await StudyTask.find({ userId: user._id });
+    if (allUserTasks.length > 0) {
+      const seenMap = new Set();
+      const duplicateIds = [];
+
+      for (const t of allUserTasks) {
+        const key = `${t.date}_${t.type}_${t.lectureNumber || t.title}_${t.topicName}`;
+        if (seenMap.has(key)) {
+          duplicateIds.push(t._id);
+        } else {
+          seenMap.add(key);
+        }
+      }
+
+      if (duplicateIds.length > 0) {
+        console.log(`[Seed]: Removing ${duplicateIds.length} duplicate tasks...`);
+        await StudyTask.deleteMany({ _id: { $in: duplicateIds } });
+      }
+    }
+
     // Check if tasks exist
     const taskCount = await StudyTask.countDocuments({ userId: user._id });
     if (taskCount === 0) {
@@ -126,7 +147,19 @@ async function seedInitialData() {
   }
 }
 
+// Mutex to ensure seed only executes once across concurrent requests
+let seedPromise = null;
+function seedInitialDataOnce() {
+  if (!seedPromise) {
+    seedPromise = seedInitialData().catch(err => {
+      seedPromise = null;
+      throw err;
+    });
+  }
+  return seedPromise;
+}
+
 module.exports = {
   INITIAL_SYLLABUS,
-  seedInitialData
+  seedInitialData: seedInitialDataOnce
 };

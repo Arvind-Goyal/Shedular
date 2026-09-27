@@ -41,7 +41,13 @@ export default function TodayPlan() {
   const [quickDuration, setQuickDuration] = useState(30);
   const [addingTask, setAddingTask] = useState(false);
 
-  const tasks = todayPlan?.tasks || [];
+  const rawTasks = todayPlan?.tasks || [];
+  const tasks = rawTasks.filter((task, index, self) =>
+    index === self.findIndex(t =>
+      (t._id && task._id && t._id === task._id) ||
+      (t.type === 'lecture' && t.lectureNumber === task.lectureNumber && t.topicName === task.topicName)
+    )
+  );
   const plannedHours = todayPlan ? Number((todayPlan.plannedMinutes / 60).toFixed(1)) : 3.5;
   const completedHours = todayPlan ? Number((todayPlan.completedMinutes / 60).toFixed(1)) : 0;
   const progressPercent = todayPlan?.plannedMinutes > 0 
